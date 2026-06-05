@@ -28,10 +28,23 @@ const app = express();
 
 /* --------------------------- Middlewares globales ------------------------- */
 
-// CORS: solo el origen del frontend (variable de entorno).
+// Lista de orígenes permitidos para CORS.
+// Acepta localhost (dev) y cualquier puerto del subdominio de Codespaces.
+const CODESPACES_ORIGIN_RE = /^https:\/\/[a-z0-9-]+-\d{4}\.app\.github\.dev$/;
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      // Peticiones sin origin (curl, mobile apps, etc.) → permitir.
+      if (!origin) return callback(null, true);
+      // Localhost (cualquier puerto).
+      if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return callback(null, true);
+      // Subdominio de Codespaces (cualquier puerto).
+      if (CODESPACES_ORIGIN_RE.test(origin)) return callback(null, true);
+      // Origen explícito en variable de entorno.
+      if (origin === process.env.FRONTEND_URL) return callback(null, true);
+      callback(new Error(`Origen CORS no permitido: ${origin}`));
+    },
     credentials: true,
   })
 );
