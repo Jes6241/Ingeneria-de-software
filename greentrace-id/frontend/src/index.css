@@ -1,0 +1,298 @@
+/* =========================================================================
+   GreenTrace ID — Estilos globales (Mobile-First, RNF01)
+   "Trazabilidad ambiental respaldada por código."
+   ========================================================================= */
+
+:root {
+  /* Paleta oficial */
+  --color-primary: #2d6a4f;
+  --color-secondary: #52b788;
+  --color-accent: #95d5b2;
+  --color-background: #f8faf8;
+  --color-surface: #ffffff;
+  --color-text: #1b1b1b;
+  --color-text-muted: #6b7280;
+  --color-danger: #dc2626;
+  --color-warning: #d97706;
+  --color-success: #16a34a;
+  --color-border: #d1d5db;
+
+  /* Diseño */
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.14);
+  --navbar-height: 60px;
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ---------- Reset básico ---------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+* {
+  margin: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--color-background);
+  color: var(--color-text);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  /* Evita scroll horizontal en pantallas de 360px–428px (RNF01). */
+  overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+h1 {
+  font-size: 1.6rem;
+}
+h2 {
+  font-size: 1.35rem;
+}
+h3 {
+  font-size: 1.15rem;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+button {
+  font-family: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: 1rem;
+  width: 100%;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+/* ---------- Utilidades ---------- */
+.container {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+/* Botones */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 18px;
+  border-radius: var(--radius);
+  font-weight: 600;
+  font-size: 1rem;
+  transition: background 0.18s ease, transform 0.05s ease, opacity 0.18s ease;
+  border: 1px solid transparent;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn:active {
+  transform: translateY(1px);
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn-block {
+  width: 100%;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: #245843;
+  text-decoration: none;
+}
+
+.btn-secondary {
+  background: var(--color-secondary);
+  color: #fff;
+}
+.btn-secondary:hover:not(:disabled) {
+  background: #43a074;
+  text-decoration: none;
+}
+
+.btn-outline {
+  background: transparent;
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.btn-outline:hover:not(:disabled) {
+  background: var(--color-accent);
+  text-decoration: none;
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: #fff;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #b91c1c;
+  text-decoration: none;
+}
+
+/* Tarjetas */
+.card {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+}
+
+/* Formularios */
+.form-group {
+  margin-bottom: 16px;
+}
+.form-label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+.form-input {
+  display: block;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.form-input:focus {
+  outline: none;
+  border-color: var(--color-secondary);
+  box-shadow: 0 0 0 3px rgba(82, 183, 136, 0.25);
+}
+.form-input.is-invalid {
+  border-color: var(--color-danger);
+}
+.form-error {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: var(--color-danger);
+}
+.form-hint {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.badge-success {
+  background: #dcfce7;
+  color: #166534;
+}
+.badge-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+.badge-danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.badge-info {
+  background: #dbeafe;
+  color: #1e40af;
+}
+.badge-neutral {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+/* Spinner */
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--color-accent);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Visualmente oculto pero accesible */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Layout con navbar fijo */
+.page {
+  min-height: calc(100vh - var(--navbar-height));
+}
+
+@media (min-width: 768px) {
+  h1 {
+    font-size: 2rem;
+  }
+}

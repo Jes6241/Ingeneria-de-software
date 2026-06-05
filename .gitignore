@@ -1,0 +1,21 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno (¡nunca subir credenciales!)
+.env
+*.env.local
+
+# Build de producción
+greentrace-id/frontend/dist/
+
+# Logs
+logs/
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+
+# Jest coverage
+coverage/

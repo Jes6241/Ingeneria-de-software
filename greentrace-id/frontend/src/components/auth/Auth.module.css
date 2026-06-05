@@ -1,0 +1,77 @@
+.screen {
+  min-height: calc(100vh - var(--navbar-height));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: linear-gradient(160deg, var(--color-background) 0%, var(--color-accent) 100%);
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  padding: 28px 24px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+.logoIcon {
+  font-size: 2.2rem;
+}
+.logoText {
+  font-size: 1.6rem;
+  color: var(--color-primary);
+  margin: 0;
+}
+
+.slogan {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+  margin-bottom: 24px;
+}
+
+.inputIcon {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.inputIcon > span:first-child {
+  position: absolute;
+  left: 12px;
+  pointer-events: none;
+}
+.inputIcon .form-input,
+.inputIcon input {
+  padding-left: 40px;
+}
+
+.toggle {
+  position: absolute;
+  right: 10px;
+  font-size: 1.1rem;
+}
+
+.footer {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 16px;
+  font-size: 0.88rem;
+}
+.checkboxRow input {
+  width: auto;
+  margin-top: 3px;
+}

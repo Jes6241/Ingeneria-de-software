@@ -1,0 +1,176 @@
+.wrapper {
+  max-width: 560px;
+}
+.h2 {
+  font-size: 1.1rem;
+  margin-bottom: 14px;
+}
+
+.offlineBanner {
+  background: #fff7ed;
+  border: 1px solid var(--color-warning);
+  color: #92400e;
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 0.88rem;
+}
+
+/* Stepper */
+.stepper {
+  display: flex;
+  justify-content: space-between;
+  margin: 14px 0 20px;
+  counter-reset: step;
+  gap: 4px;
+}
+.step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  position: relative;
+}
+.step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 14px;
+  left: 60%;
+  width: 80%;
+  height: 2px;
+  background: var(--color-border);
+}
+.stepNum {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-border);
+  color: #fff;
+  font-weight: 700;
+  z-index: 1;
+}
+.active {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+.active .stepNum {
+  background: var(--color-primary);
+}
+.done .stepNum {
+  background: var(--color-success);
+}
+
+/* Dropzone */
+.dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: center;
+  color: var(--color-text-muted);
+  padding: 12px;
+  overflow: hidden;
+}
+.dropzone img {
+  max-height: 240px;
+  border-radius: var(--radius-sm);
+}
+
+/* Radios tipo chip */
+.radioRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.radioChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.radioChip input {
+  width: auto;
+  accent-color: var(--color-primary);
+}
+
+/* Toggle */
+.toggle {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.toggle button {
+  padding: 8px 22px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+.toggleOn {
+  background: var(--color-primary);
+  color: #fff !important;
+}
+
+.warnBanner {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  margin-bottom: 14px;
+}
+
+.geoBadge {
+  margin: 8px 0 18px;
+}
+
+.navBtns {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.navBtns .btn {
+  flex: 1;
+}
+
+/* Revisión */
+.reviewImg {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  margin-bottom: 14px;
+}
+.review {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.review > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 6px;
+}
+.review dt {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+.review dd {
+  font-weight: 600;
+  text-align: right;
+}
