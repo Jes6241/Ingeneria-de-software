@@ -76,16 +76,27 @@ async function calcularImpacto(idArbol) {
   const edadMeses = calcularEdadMeses(arbol.fecha_plantacion);
   const { biomasa, co2 } = computeCO2(edadMeses, ecuacion);
 
-  const impacto = await ImpactoAmbiental.create({
+  const valores = {
     id_arbol: idArbol,
     captura_co2_kg: co2,
     biomasa_kg: biomasa,
     edad_calc_meses: edadMeses,
     id_ecuacion_usada: ecuacion ? ecuacion.id_ecuacion : null,
     fecha_calculo: new Date(),
+  };
+
+  // Idempotente: cada árbol tiene un único registro de impacto (hasOne).
+  // Si ya existe, se actualiza; si no, se crea.
+  const existente = await ImpactoAmbiental.findOne({
+    where: { id_arbol: idArbol },
   });
 
-  return impacto;
+  if (existente) {
+    await existente.update(valores);
+    return existente;
+  }
+
+  return ImpactoAmbiental.create(valores);
 }
 
 module.exports = {

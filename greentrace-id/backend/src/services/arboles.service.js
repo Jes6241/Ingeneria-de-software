@@ -10,6 +10,8 @@ const { randomUUID } = require('crypto');
 
 const { Arbol, Especie } = require('../models');
 const { AppError } = require('../middlewares/errorHandler');
+const { calcularImpacto } = require('./co2.service');
+const logger = require('../config/logger');
 
 // Límite máximo de paginación del lado del servidor (R14 / convención).
 const MAX_PAGE_SIZE = 50;
@@ -53,6 +55,16 @@ async function createArbol(data) {
     ubicacion_descripcion: data.ubicacion_descripcion || data.ubicacion || null,
     activo: true,
   });
+
+  // Cálculo inicial del impacto ambiental (RF05). No debe bloquear el
+  // registro del árbol si algo falla, por eso se aísla en try/catch.
+  try {
+    await calcularImpacto(arbol.id_arbol);
+  } catch (error) {
+    logger.warn(
+      `No se pudo calcular el impacto inicial del árbol ${arbol.id_arbol}: ${error.message}`
+    );
+  }
 
   return arbol;
 }
