@@ -21,6 +21,7 @@
 }
 .region {
   width: 100%;
+  min-height: 280px;
 }
 
 .overlay {
