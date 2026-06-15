@@ -1,8 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { ROLES } from '../../constants/roles';
+import { notificacionesAPI } from '../../services/api';
 import styles from './Navbar.module.css';
+
+// Intervalo de sondeo de notificaciones (ms).
+const POLL_MS = 60000;
+
+/** Formatea una fecha ISO a un texto corto en español. */
+function formatFecha(iso) {
+  if (!iso) return '';
+  return new Date(iso).toLocaleString('es-MX', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 /** Barra de navegación principal (Mobile-First) con drawer lateral. */
 export default function Navbar() {
@@ -10,12 +25,60 @@ export default function Navbar() {
   const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notiOpen, setNotiOpen] = useState(false);
+  const [notificaciones, setNotificaciones] = useState([]);
+  const [noLeidas, setNoLeidas] = useState(0);
+
+  const cargarNotificaciones = useCallback(async () => {
+    try {
+      const data = await notificacionesAPI.mias();
+      setNotificaciones(data.notificaciones || []);
+      setNoLeidas(data.no_leidas || 0);
+    } catch {
+      // Silencioso: no bloquear la navegación si falla.
+    }
+  }, []);
+
+  // Sondea las notificaciones mientras haya sesión activa.
+  useEffect(() => {
+    if (!isAuthenticated()) {
+      setNotificaciones([]);
+      setNoLeidas(0);
+      return undefined;
+    }
+    cargarNotificaciones();
+    const id = setInterval(cargarNotificaciones, POLL_MS);
+    return () => clearInterval(id);
+  }, [isAuthenticated, cargarNotificaciones]);
 
   const handleLogout = () => {
     logout();
     setDrawerOpen(false);
     setMenuOpen(false);
+    setNotiOpen(false);
     navigate('/login');
+  };
+
+  const marcarLeida = async (id) => {
+    try {
+      await notificacionesAPI.marcarLeida(id);
+      setNotificaciones((prev) =>
+        prev.map((n) => (n.id_notificacion === id ? { ...n, leido: true } : n))
+      );
+      setNoLeidas((c) => Math.max(0, c - 1));
+    } catch {
+      /* sin acción */
+    }
+  };
+
+  const marcarTodas = async () => {
+    try {
+      await notificacionesAPI.marcarTodasLeidas();
+      setNotificaciones((prev) => prev.map((n) => ({ ...n, leido: true })));
+      setNoLeidas(0);
+    } catch {
+      /* sin acción */
+    }
   };
 
   const closeDrawer = () => setDrawerOpen(false);
@@ -60,6 +123,68 @@ export default function Navbar() {
             <nav className={styles.desktopNav} aria-label="Navegación principal">
               {navLinks}
             </nav>
+
+            {/* Campana de notificaciones */}
+            <div className={styles.bellArea}>
+              <button
+                type="button"
+                className={styles.bellBtn}
+                onClick={() => setNotiOpen((o) => !o)}
+                aria-haspopup="true"
+                aria-expanded={notiOpen}
+                aria-label={`Notificaciones${
+                  noLeidas ? `, ${noLeidas} sin leer` : ''
+                }`}
+              >
+                <span aria-hidden="true">🔔</span>
+                {noLeidas > 0 && (
+                  <span className={styles.badge}>
+                    {noLeidas > 9 ? '9+' : noLeidas}
+                  </span>
+                )}
+              </button>
+              {notiOpen && (
+                <div className={styles.notiPanel} role="menu">
+                  <div className={styles.notiHeader}>
+                    <strong>Notificaciones</strong>
+                    {noLeidas > 0 && (
+                      <button
+                        type="button"
+                        className={styles.notiMarkAll}
+                        onClick={marcarTodas}
+                      >
+                        Marcar todas
+                      </button>
+                    )}
+                  </div>
+                  <div className={styles.notiList}>
+                    {notificaciones.length === 0 ? (
+                      <p className={styles.notiEmpty}>
+                        No tienes notificaciones.
+                      </p>
+                    ) : (
+                      notificaciones.map((n) => (
+                        <button
+                          key={n.id_notificacion}
+                          type="button"
+                          className={`${styles.notiItem} ${
+                            n.leido ? '' : styles.notiUnread
+                          }`}
+                          onClick={() =>
+                            !n.leido && marcarLeida(n.id_notificacion)
+                          }
+                        >
+                          <span className={styles.notiMsg}>{n.mensaje}</span>
+                          <small className={styles.notiFecha}>
+                            {formatFecha(n.fecha_envio)}
+                          </small>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Usuario desktop */}
             <div className={styles.userArea}>

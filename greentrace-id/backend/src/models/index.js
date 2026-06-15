@@ -59,6 +59,10 @@ HistorialEstado.belongsTo(Arbol, { foreignKey: 'id_arbol' });
 Usuario.hasMany(Notificacion, { foreignKey: 'id_usuario' });
 Notificacion.belongsTo(Usuario, { foreignKey: 'id_usuario' });
 
+// Adopcion 1..N Notificacion
+Adopcion.hasMany(Notificacion, { foreignKey: 'id_adopcion' });
+Notificacion.belongsTo(Adopcion, { foreignKey: 'id_adopcion' });
+
 // Especie 1..N EcuacionAlometrica
 Especie.hasMany(EcuacionAlometrica, { foreignKey: 'id_especie' });
 EcuacionAlometrica.belongsTo(Especie, { foreignKey: 'id_especie' });

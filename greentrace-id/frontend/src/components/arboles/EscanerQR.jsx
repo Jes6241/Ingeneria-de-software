@@ -26,6 +26,10 @@ export default function EscanerQR() {
   const [scannerReady, setScannerReady] = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [permisoDenegado, setPermisoDenegado] = useState(false);
+  // Indica que la cámara no pudo iniciarse (se usa el respaldo manual).
+  const [camaraError, setCamaraError] = useState(false);
+  // Código introducido manualmente como respaldo.
+  const [codigoManual, setCodigoManual] = useState('');
   // Se incrementa para volver a arrancar la cámara (reintentos).
   const [intento, setIntento] = useState(0);
 
@@ -34,11 +38,49 @@ export default function EscanerQR() {
     const scanner = scannerRef.current;
     if (!scanner) return;
     try {
-      await scanner.stop();
+      const estado =
+        typeof scanner.getState === 'function' ? scanner.getState() : null;
+      // Solo se puede detener si está escaneando (2) o en pausa (3).
+      if (estado === 2 || estado === 3) {
+        await scanner.stop();
+      }
       scanner.clear();
     } catch {
       // Ya estaba detenido o aún no había arrancado: ignorar.
     }
+  };
+
+  /** Crea la adopción para un id_unico y navega al dashboard. */
+  const adoptar = async (idUnico) => {
+    setProcesando(true);
+    try {
+      const adopcion = await adopcionesAPI.adoptar(idUnico);
+      toast.success('¡Árbol adoptado! 🌱');
+      navigate(`/dashboard/${adopcion.id_arbol}`);
+      return true;
+    } catch (err) {
+      if (err.status === 404) {
+        toast.error('Árbol no encontrado');
+      } else {
+        // 409 (ya adoptado) y demás: mensaje del backend.
+        toast.error(err.message);
+      }
+      setProcesando(false);
+      return false;
+    }
+  };
+
+  /** Adopta usando el código escrito a mano. */
+  const adoptarManual = async (e) => {
+    e.preventDefault();
+    const match = codigoManual.match(UUID_RE);
+    if (!match) {
+      toast.error('El código no es válido. Revisa e inténtalo de nuevo.');
+      return;
+    }
+    await detenerScanner();
+    handledRef.current = true;
+    await adoptar(match[0]);
   };
 
   useEffect(() => {
@@ -46,8 +88,22 @@ export default function EscanerQR() {
     handledRef.current = false;
     setScannerReady(false);
     setPermisoDenegado(false);
+    setCamaraError(false);
 
-    const html5QrCode = new Html5Qrcode(QR_REGION_ID);
+    // El acceso a la cámara requiere un contexto seguro (HTTPS o localhost).
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCamaraError(true);
+      return undefined;
+    }
+
+    let html5QrCode;
+    try {
+      html5QrCode = new Html5Qrcode(QR_REGION_ID);
+    } catch {
+      // El nodo del lector no está disponible: usar respaldo manual.
+      setCamaraError(true);
+      return undefined;
+    }
     scannerRef.current = html5QrCode;
 
     const onScanSuccess = async (decodedText) => {
@@ -63,21 +119,10 @@ export default function EscanerQR() {
       // 1) Detener el scanner ANTES de tocar el estado o navegar.
       await detenerScanner();
       toast.success('QR detectado');
-      setProcesando(true);
 
       // 2) Crear la adopción y navegar al dashboard del árbol.
-      try {
-        const adopcion = await adopcionesAPI.adoptar(idUnico);
-        toast.success('¡Árbol adoptado! 🌱');
-        navigate(`/dashboard/${adopcion.id_arbol}`);
-      } catch (err) {
-        if (err.status === 404) {
-          toast.error('Árbol no encontrado');
-        } else {
-          // 409 (ya adoptado) y demás: mensaje del backend.
-          toast.error(err.message);
-        }
-        setProcesando(false);
+      const ok = await adoptar(idUnico);
+      if (!ok) {
         handledRef.current = false;
         // Reintentar el escaneo arrancando de nuevo la cámara.
         setIntento((n) => n + 1);
@@ -104,20 +149,42 @@ export default function EscanerQR() {
         ) {
           setPermisoDenegado(true);
         } else {
-          toast.error('No se pudo acceder a la cámara.');
+          setCamaraError(true);
+          toast.error('No se pudo acceder a la cámara. Usa el código manual.');
         }
       });
 
     // Cleanup: detener el scanner de forma silenciosa al desmontar.
+    // En StrictMode el efecto se monta dos veces; stop() lanza una excepción
+    // SÍNCRONA si el scanner aún no está escaneando, por eso se protege todo
+    // con try/catch y se comprueba el estado antes de detener.
     return () => {
       activo = false;
-      if (scannerRef.current) {
-        scannerRef.current
-          .stop()
-          .then(() => {
-            scannerRef.current.clear();
-          })
-          .catch(() => {});
+      const scanner = scannerRef.current;
+      if (!scanner) return;
+      try {
+        const estado =
+          typeof scanner.getState === 'function' ? scanner.getState() : null;
+        if (estado === 2 || estado === 3) {
+          scanner
+            .stop()
+            .then(() => {
+              try {
+                scanner.clear();
+              } catch {
+                /* ignorar */
+              }
+            })
+            .catch(() => {});
+        } else {
+          try {
+            scanner.clear();
+          } catch {
+            /* ignorar */
+          }
+        }
+      } catch {
+        /* ignorar */
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -159,27 +226,66 @@ export default function EscanerQR() {
         )}
 
         {/* Visor — el nodo del lector permanece SIEMPRE montado */}
-        <div className={styles.reader} style={{ position: 'relative' }}>
-          <div
-            id={QR_REGION_ID}
-            className={styles.region}
-            style={{
-              visibility: scannerReady && !procesando ? 'visible' : 'hidden',
-            }}
+        {!camaraError && (
+          <div className={styles.reader} style={{ position: 'relative' }}>
+            <div
+              id={QR_REGION_ID}
+              className={styles.region}
+              style={{
+                visibility: scannerReady && !procesando ? 'visible' : 'hidden',
+              }}
+            />
+
+            {/* Marco guía visible mientras la cámara está activa */}
+            {scannerReady && !procesando && <div className={styles.frame} />}
+
+            {!scannerReady && !permisoDenegado && (
+              <div className={styles.overlay}>
+                <Loader size="md" mensaje="Iniciando cámara…" />
+              </div>
+            )}
+
+            {procesando && (
+              <div className={styles.overlay}>
+                <Loader size="md" mensaje="Adoptando árbol…" />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Aviso si la cámara no está disponible */}
+        {camaraError && (
+          <div className="card" role="alert">
+            <p style={{ margin: 0 }}>
+              📷 No se pudo abrir la cámara en este dispositivo o navegador.
+              Introduce el código del árbol manualmente más abajo.
+            </p>
+          </div>
+        )}
+
+        {/* Respaldo manual: introducir el código del árbol */}
+        <div className={styles.divider}>— o introduce el código manualmente —</div>
+        <form className={styles.manual} onSubmit={adoptarManual}>
+          <p className={styles.manualHint}>
+            Escribe o pega el identificador del árbol (por ejemplo,
+            <code> GT-xxxxxxxx-...</code>) que aparece junto al código QR.
+          </p>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="GT-0000..."
+            value={codigoManual}
+            onChange={(e) => setCodigoManual(e.target.value)}
+            disabled={procesando}
           />
-
-          {!scannerReady && !permisoDenegado && (
-            <div className={styles.overlay}>
-              <Loader size="md" mensaje="Iniciando cámara…" />
-            </div>
-          )}
-
-          {procesando && (
-            <div className={styles.overlay}>
-              <Loader size="md" mensaje="Adoptando árbol…" />
-            </div>
-          )}
-        </div>
+          <button
+            type="submit"
+            className="btn btn-primary btn-block"
+            disabled={procesando || !codigoManual.trim()}
+          >
+            Adoptar con este código
+          </button>
+        </form>
 
         <button
           type="button"

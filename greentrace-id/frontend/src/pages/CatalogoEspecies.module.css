@@ -1,0 +1,96 @@
+.page {
+  padding-top: 20px;
+  padding-bottom: 40px;
+}
+
+.header {
+  margin-bottom: 20px;
+}
+
+.subtitle {
+  color: var(--color-text-muted);
+  margin-top: 4px;
+}
+
+.cardTitle {
+  font-size: 1.1rem;
+  margin-bottom: 14px;
+}
+
+.formCard {
+  margin-bottom: 28px;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.listSection {
+  margin-top: 8px;
+}
+
+.count {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.especie {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.especieNombre {
+  font-size: 1.05rem;
+}
+
+.cientifico {
+  font-style: italic;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.meta {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.descripcion {
+  font-size: 0.9rem;
+  margin: 4px 0 0;
+}
+
+.error {
+  color: var(--color-danger);
+  margin-bottom: 12px;
+}
+
+@media (min-width: 600px) {
+  .form {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 768px) {
+  .grid {
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+}
