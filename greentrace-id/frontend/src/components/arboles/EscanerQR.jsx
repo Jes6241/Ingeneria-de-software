@@ -2,27 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { adopcionesAPI } from '../../services/api';
+import { adopcionesAPI, arbolesAPI } from '../../services/api';
+import { haversine, TOLERANCE_METERS, useGeolocation } from '../../hooks/useGeolocation';
 import Loader from '../shared/Loader';
 import styles from './EscanerQR.module.css';
 
 const QR_REGION_ID = 'qr-reader';
-// Acepta UUID con o sin prefijo "GT-".
 const UUID_RE =
   /(GT-)?[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i;
 
-/**
- * Escáner de código QR para adoptar un árbol (RF02).
- * Lee el id_unico codificado en el QR y crea la adopción.
- *
- * El nodo del lector (id="qr-reader") nunca se desmonta condicionalmente:
- * html5-qrcode inserta DOM fuera de React, por lo que ocultarlo con
- * `visibility` evita que React pierda el nodo y deje la pantalla en blanco.
- */
 export default function EscanerQR() {
   const scannerRef = useRef(null);
   const handledRef = useRef(false);
   const navigate = useNavigate();
+
   const [scannerReady, setScannerReady] = useState(false);
   const [procesando, setProcesando] = useState(false);
   const [permisoDenegado, setPermisoDenegado] = useState(false);
@@ -30,10 +23,17 @@ export default function EscanerQR() {
   const [camaraError, setCamaraError] = useState(false);
   // Código introducido manualmente como respaldo.
   const [codigoManual, setCodigoManual] = useState('');
-  // Se incrementa para volver a arrancar la cámara (reintentos).
   const [intento, setIntento] = useState(0);
 
-  /** Detiene y limpia el scanner de forma silenciosa. */
+  // Geolocation requested at mount so it's ready when the QR is scanned.
+  // Stored in a ref so the async onScanSuccess callback always reads the
+  // latest value without depending on React state (avoids stale closure).
+  const { coords: geoCoords, error: geoError } = useGeolocation({ auto: true });
+  const geoCoordsRef = useRef(null);
+  useEffect(() => {
+    geoCoordsRef.current = geoCoords;
+  }, [geoCoords]);
+
   const detenerScanner = async () => {
     const scanner = scannerRef.current;
     if (!scanner) return;
@@ -46,24 +46,55 @@ export default function EscanerQR() {
       }
       scanner.clear();
     } catch {
-      // Ya estaba detenido o aún no había arrancado: ignorar.
+      // Already stopped or not yet started — ignore.
     }
   };
 
-  /** Crea la adopción para un id_unico y navega al dashboard. */
-  const adoptar = async (idUnico) => {
+  /** Valida distancia GPS y crea la adopción. Retorna true si tuvo éxito. */
+  const adoptarConGeo = async (idUnico) => {
     setProcesando(true);
     try {
+      let coords = geoCoordsRef.current;
+      if (!coords) {
+        coords = await new Promise((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            (pos) =>
+              resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+            reject,
+            { enableHighAccuracy: true, timeout: 10000 }
+          );
+        });
+        geoCoordsRef.current = coords;
+      }
+
+      const arbol = await arbolesAPI.obtenerPorQR(idUnico);
+      const distancia = haversine(
+        coords.lat,
+        coords.lng,
+        arbol.latitud,
+        arbol.longitud
+      );
+
+      if (distancia > TOLERANCE_METERS) {
+        toast.error(
+          `📍 Estás demasiado lejos (${distancia.toFixed(1)}m). Acércate a ≤${TOLERANCE_METERS}m.`
+        );
+        setProcesando(false);
+        return false;
+      }
+
       const adopcion = await adopcionesAPI.adoptar(idUnico);
       toast.success('¡Árbol adoptado! 🌱');
       navigate(`/dashboard/${adopcion.id_arbol}`);
       return true;
     } catch (err) {
-      if (err.status === 404) {
-        toast.error('Árbol no encontrado');
+      if (err?.code === 1) {
+        // GeolocationPositionError.PERMISSION_DENIED
+        toast.error('❌ Geolocalización requerida para adoptar.');
+      } else if (err?.status === 404) {
+        toast.error('Árbol no encontrado.');
       } else {
-        // 409 (ya adoptado) y demás: mensaje del backend.
-        toast.error(err.message);
+        toast.error(err?.message || 'Error al procesar la adopción.');
       }
       setProcesando(false);
       return false;
@@ -80,7 +111,8 @@ export default function EscanerQR() {
     }
     await detenerScanner();
     handledRef.current = true;
-    await adoptar(match[0]);
+    const ok = await adoptarConGeo(match[0]);
+    if (!ok) handledRef.current = false;
   };
 
   useEffect(() => {
@@ -114,17 +146,12 @@ export default function EscanerQR() {
         return;
       }
       handledRef.current = true;
-      const idUnico = match[0];
-
-      // 1) Detener el scanner ANTES de tocar el estado o navegar.
       await detenerScanner();
       toast.success('QR detectado');
 
-      // 2) Crear la adopción y navegar al dashboard del árbol.
-      const ok = await adoptar(idUnico);
+      const ok = await adoptarConGeo(match[0]);
       if (!ok) {
         handledRef.current = false;
-        // Reintentar el escaneo arrancando de nuevo la cámara.
         setIntento((n) => n + 1);
       }
     };
@@ -169,19 +196,11 @@ export default function EscanerQR() {
           scanner
             .stop()
             .then(() => {
-              try {
-                scanner.clear();
-              } catch {
-                /* ignorar */
-              }
+              try { scanner.clear(); } catch { /* ignorar */ }
             })
             .catch(() => {});
         } else {
-          try {
-            scanner.clear();
-          } catch {
-            /* ignorar */
-          }
+          try { scanner.clear(); } catch { /* ignorar */ }
         }
       } catch {
         /* ignorar */
@@ -195,11 +214,6 @@ export default function EscanerQR() {
     navigate('/home');
   };
 
-  const reintentarPermiso = () => {
-    setPermisoDenegado(false);
-    setIntento((n) => n + 1);
-  };
-
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-background)' }}>
       <div className={`container page ${styles.wrapper}`}>
@@ -208,7 +222,6 @@ export default function EscanerQR() {
           Apunta la cámara al código QR físico del árbol.
         </p>
 
-        {/* Permiso de cámara denegado */}
         {permisoDenegado && (
           <div className="card" role="alert" style={{ textAlign: 'center' }}>
             <p style={{ marginBottom: 16 }}>
@@ -218,23 +231,21 @@ export default function EscanerQR() {
             <button
               type="button"
               className="btn btn-primary"
-              onClick={reintentarPermiso}
+              onClick={() => {
+                setPermisoDenegado(false);
+                setIntento((n) => n + 1);
+              }}
             >
               Reintentar
             </button>
           </div>
         )}
 
-        {/* Visor — el nodo del lector permanece SIEMPRE montado */}
+        {/* Scanner container — always visible so html5-qrcode renders the
+            video correctly. Overlays sit on top while loading/processing. */}
         {!camaraError && (
           <div className={styles.reader} style={{ position: 'relative' }}>
-            <div
-              id={QR_REGION_ID}
-              className={styles.region}
-              style={{
-                visibility: scannerReady && !procesando ? 'visible' : 'hidden',
-              }}
-            />
+            <div id={QR_REGION_ID} className={styles.region} />
 
             {/* Marco guía visible mientras la cámara está activa */}
             {scannerReady && !procesando && <div className={styles.frame} />}
@@ -259,6 +270,29 @@ export default function EscanerQR() {
             <p style={{ margin: 0 }}>
               📷 No se pudo abrir la cámara en este dispositivo o navegador.
               Introduce el código del árbol manualmente más abajo.
+            </p>
+          </div>
+        )}
+
+        {geoCoords && !procesando && (
+          <div
+            className="card"
+            style={{ background: '#e8f5e9', border: '2px solid #4caf50', padding: 12 }}
+          >
+            <p style={{ margin: 0, fontSize: '0.9rem', color: '#2e7d32' }}>
+              📍 Ubicación detectada. Escanea el QR del árbol para validar la
+              distancia.
+            </p>
+          </div>
+        )}
+
+        {geoError && !geoCoords && !procesando && (
+          <div
+            className="card"
+            style={{ background: '#fff3e0', border: '2px solid #ff9800', padding: 12 }}
+          >
+            <p style={{ margin: 0, fontSize: '0.9rem', color: '#e65100' }}>
+              ⚠️ Geolocalización no disponible aún. Se solicitará al escanear.
             </p>
           </div>
         )}
