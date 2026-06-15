@@ -15,6 +15,7 @@ const {
   HistorialEstado,
 } = require('../models');
 const { AppError } = require('../middlewares/errorHandler');
+const { calcularImpacto } = require('./co2.service');
 
 /**
  * Obtiene los datos consolidados del dashboard de un árbol.
@@ -22,7 +23,7 @@ const { AppError } = require('../middlewares/errorHandler');
  * @returns {Promise<object>}
  */
 async function getDashboard(idArbol) {
-  const arbol = await Arbol.findByPk(idArbol, {
+  let arbol = await Arbol.findByPk(idArbol, {
     include: [
       { model: Especie },
       { model: ImpactoAmbiental },
@@ -32,6 +33,23 @@ async function getDashboard(idArbol) {
 
   if (!arbol) {
     throw new AppError('Árbol no encontrado.', 404);
+  }
+
+  // Si el árbol aún no tiene impacto calculado (p. ej. registrado antes de
+  // activar el cálculo automático), se calcula al vuelo y se recarga (RF05).
+  if (!arbol.ImpactoAmbiental) {
+    try {
+      await calcularImpacto(idArbol);
+      arbol = await Arbol.findByPk(idArbol, {
+        include: [
+          { model: Especie },
+          { model: ImpactoAmbiental },
+          { model: HistorialEstado },
+        ],
+      });
+    } catch {
+      // El impacto es opcional para visualizar el resto del dashboard.
+    }
   }
 
   // Reportes y evidencias a través de las adopciones del árbol.

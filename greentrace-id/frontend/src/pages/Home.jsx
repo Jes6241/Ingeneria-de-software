@@ -131,14 +131,13 @@ export default function Home() {
               >
                 <span aria-hidden="true">🗺️</span> Ver mapa de árboles
               </button>
-              <div
+              <button
+                type="button"
                 className={`card ${styles.adminCard}`}
-                aria-disabled="true"
-                style={{ opacity: 0.7, cursor: 'default', flexDirection: 'column', gap: 6 }}
+                onClick={() => navigate('/admin/especies')}
               >
-                <span><span aria-hidden="true">📋</span> Catálogo de especies</span>
-                <span className="badge badge-info">Próximamente</span>
-              </div>
+                <span aria-hidden="true">📋</span> Catálogo de especies
+              </button>
             </div>
           </section>
         </>
@@ -204,6 +203,15 @@ export default function Home() {
                         onClick={() => navigate(`/dashboard/${a.id_arbol}`)}
                       >
                         Ver Dashboard
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-primary btn-block"
+                        onClick={() =>
+                          navigate(`/adopciones/${a.id_adopcion}/reporte`)
+                        }
+                      >
+                        📝 Generar reporte
                       </button>
                     </article>
                   );

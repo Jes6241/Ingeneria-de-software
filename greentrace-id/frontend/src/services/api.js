@@ -100,4 +100,18 @@ export const dashboardAPI = {
     api.post(`/dashboard/${idArbol}/calcular`).then((r) => r.data),
 };
 
+export const especiesAPI = {
+  listar: (params) => api.get('/especies', { params }).then((r) => r.data),
+  crear: (payload) => api.post('/especies', payload).then((r) => r.data),
+};
+
+export const notificacionesAPI = {
+  // Devuelve { notificaciones, no_leidas }.
+  mias: () => api.get('/notifications/me').then((r) => r.data),
+  marcarLeida: (id) =>
+    api.patch(`/notifications/${id}/read`).then((r) => r.data),
+  marcarTodasLeidas: () =>
+    api.patch('/notifications/read-all').then((r) => r.data),
+};
+
 export default api;

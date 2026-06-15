@@ -21,6 +21,8 @@ const arbolesRoutes = require('./routes/arboles.routes');
 const adopcionesRoutes = require('./routes/adopciones.routes');
 const reportesRoutes = require('./routes/reportes.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
+const especiesRoutes = require('./routes/especies.routes');
+const notificacionesRoutes = require('./routes/notificaciones.routes');
 
 const { notFoundHandler, errorHandler } = require('./middlewares/errorHandler');
 
@@ -70,6 +72,8 @@ app.use('/api/arboles', arbolesRoutes);
 app.use('/api/adoptions', adopcionesRoutes);
 app.use('/api/reports', reportesRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/especies', especiesRoutes);
+app.use('/api/notifications', notificacionesRoutes);
 
 /* ----------------------- Manejo de errores (final) ------------------------ */
 

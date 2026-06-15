@@ -167,13 +167,21 @@ export default function FormularioReporte() {
       toast.success('¡Reporte enviado correctamente! 🌱');
       navigate('/home');
     } catch (err) {
-      // Si falla la red, se guarda offline como respaldo.
-      try {
-        await guardarPendiente(entry);
-        toast('Guardado offline: se reintentará automáticamente.', { icon: '💾' });
-        navigate('/home');
-      } catch {
+      // Si el servidor respondió con un error (status presente), es un
+      // problema del reporte (p. ej. foto sin GPS): mostrar el motivo real.
+      if (err.status) {
         toast.error(err.message);
+      } else {
+        // Sin respuesta del servidor = fallo de red real: guardar offline.
+        try {
+          await guardarPendiente(entry);
+          toast('Sin conexión: el reporte se reintentará automáticamente.', {
+            icon: '💾',
+          });
+          navigate('/home');
+        } catch {
+          toast.error('No se pudo enviar ni guardar el reporte.');
+        }
       }
     } finally {
       setEnviando(false);

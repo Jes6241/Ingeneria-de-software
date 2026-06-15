@@ -24,6 +24,36 @@
   min-height: 280px;
 }
 
+/* html5-qrcode inyecta <video>/<canvas> fuera de React: forzamos que
+   ocupen todo el visor y se recorten sin deformarse. */
+.region :global(video),
+.region :global(canvas) {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 280px;
+  object-fit: cover;
+  display: block;
+}
+.region :global(img[alt='Info icon']),
+.region :global(#qr-reader__dashboard_section_csr button) {
+  /* Oculta controles automáticos poco amigables del lector. */
+  display: none !important;
+}
+
+/* Marco guía para encuadrar el QR. */
+.frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200px;
+  height: 200px;
+  transform: translate(-50%, -50%);
+  border: 3px solid var(--color-accent);
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
 .overlay {
   position: absolute;
   inset: 0;
@@ -34,4 +64,26 @@
   gap: 10px;
   background: rgba(0, 0, 0, 0.6);
   color: #fff;
+}
+
+/* Respaldo manual cuando la cámara no está disponible. */
+.manual {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.manualTitle {
+  font-size: 1rem;
+  margin: 0;
+}
+.manualHint {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+.divider {
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  position: relative;
 }

@@ -1,9 +1,9 @@
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import { QRCodeCanvas } from 'qrcode.react';
 import toast from 'react-hot-toast';
-import { arbolesAPI } from '../../services/api';
+import { arbolesAPI, especiesAPI } from '../../services/api';
 import { setupLeaflet } from '../../utils/leafletSetup';
 import styles from './RegistroArbol.module.css';
 
@@ -60,8 +60,17 @@ export default function RegistroArbol() {
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [arbolCreado, setArbolCreado] = useState(null);
+  // Catálogo de especies para el desplegable (RF10).
+  const [especies, setEspecies] = useState([]);
   // UUID de previsualización del QR (el definitivo lo asigna el backend).
   const [previewId, setPreviewId] = useState(() => `GT-${crypto.randomUUID()}`);
+
+  useEffect(() => {
+    especiesAPI
+      .listar({ activas: true })
+      .then((data) => setEspecies(Array.isArray(data) ? data : []))
+      .catch(() => setEspecies([]));
+  }, []);
 
   const handleChange = (e) =>
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -167,17 +176,28 @@ export default function RegistroArbol() {
 
           <div className="form-group">
             <label className="form-label" htmlFor="id_especie">
-              ID de especie (opcional)
+              Especie
             </label>
-            <input
+            <select
               id="id_especie"
               name="id_especie"
-              type="number"
               className="form-input"
               value={form.id_especie}
               onChange={handleChange}
-              placeholder="Ej. 1"
-            />
+            >
+              <option value="">Selecciona una especie (opcional)</option>
+              {especies.map((e) => (
+                <option key={e.id_especie} value={e.id_especie}>
+                  {e.nombre_comun}
+                  {e.nombre_cientifico ? ` (${e.nombre_cientifico})` : ''}
+                </option>
+              ))}
+            </select>
+            {especies.length === 0 && (
+              <span className="form-hint">
+                No hay especies registradas. Agrégalas en el catálogo.
+              </span>
+            )}
           </div>
 
           <div className="form-group">

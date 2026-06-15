@@ -17,6 +17,7 @@ const {
 } = require('../models');
 const { uploadImage } = require('../config/cloudinary');
 const { validateExif } = require('./exif.service');
+const { calcularImpacto } = require('./co2.service');
 const { AppError } = require('../middlewares/errorHandler');
 const logger = require('../config/logger');
 
@@ -58,7 +59,7 @@ async function crearReporte({ idUsuario, idAdopcion, datos, imagenBuffer }) {
     throw new AppError('No se pudo almacenar la evidencia fotográfica.', 502);
   }
 
-  return sequelize.transaction(async (t) => {
+  const resultado = await sequelize.transaction(async (t) => {
     const reporte = await Reporte.create(
       {
         id_adopcion: idAdopcion,
@@ -100,6 +101,18 @@ async function crearReporte({ idUsuario, idAdopcion, datos, imagenBuffer }) {
 
     return { reporte, evidencia };
   });
+
+  // Recalcula el impacto ambiental del árbol tras el nuevo reporte (RF05).
+  // Va fuera de la transacción: un fallo aquí no debe revertir el reporte.
+  try {
+    await calcularImpacto(adopcion.Arbol.id_arbol);
+  } catch (error) {
+    logger.warn(
+      `No se pudo recalcular el impacto del árbol ${adopcion.Arbol.id_arbol}: ${error.message}`
+    );
+  }
+
+  return resultado;
 }
 
 module.exports = { crearReporte, CLOUDINARY_FOLDER };

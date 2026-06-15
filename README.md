@@ -29,11 +29,12 @@ Sistema de seguimiento y adopción de árboles urbanos desarrollado para el camp
 
 GreenTrace ID digitaliza el ciclo de vida de los árboles en el campus:
 
-1. **Administradores** registran árboles con geolocalización y generan códigos QR físicos.
-2. **Estudiantes** escanean el QR con la app para adoptar un árbol.
+1. **Administradores** registran árboles con geolocalización (eligiendo la especie del catálogo) y generan códigos QR físicos.
+2. **Estudiantes** escanean el QR con la app para adoptar un árbol (o introducen el código manualmente como respaldo).
 3. Cada mes, el estudiante envía un reporte fotográfico con datos de salud (riego, coloración, plagas).
 4. El sistema calcula el impacto ambiental acumulado (captura de CO₂, biomasa) usando ecuaciones alométricas.
 5. Un mapa interactivo muestra el estado de todos los árboles en tiempo real.
+6. Las **notificaciones** avisan a los estudiantes sobre fechas de corte e inactividad de sus adopciones.
 
 ---
 
@@ -58,13 +59,15 @@ Ingeneria-de-software/
     │   ├── src/
     │   │   ├── app.js               # Punto de entrada Express
     │   │   ├── config/              # DB, logger, cloudinary
-    │   │   ├── controllers/         # auth, arboles, adopciones, reportes, dashboard
+    │   │   ├── controllers/         # auth, arboles, adopciones, reportes, dashboard,
+    │   │   │                        #   especies, notificaciones
     │   │   ├── jobs/                # Cron: cálculo de impacto ambiental
     │   │   ├── middlewares/         # auth (JWT), errorHandler, upload
     │   │   ├── models/              # Sequelize: Usuario, Arbol, Especie, Adopcion,
     │   │   │                        #   Reporte, EvidenciaFotografica, ImpactoAmbiental,
     │   │   │                        #   HistorialEstado, EcuacionAlometrica, Notificacion, Rol
-    │   │   ├── routes/              # auth, arboles, adopciones, reportes, dashboard
+    │   │   ├── routes/              # auth, arboles, adopciones, reportes, dashboard,
+    │   │   │                        #   especies, notificaciones
     │   │   └── services/            # Lógica de negocio desacoplada
     │   ├── tests/                   # Tests de integración con supertest
     │   ├── .env.example
@@ -91,13 +94,14 @@ Ingeneria-de-software/
         │   │   ├── arboles/         # EscanerQR, RegistroArbol
         │   │   ├── auth/            # Login, Register
         │   │   ├── reportes/        # FormularioReporte (3 pasos), ValidacionEXIF
-        │   │   └── shared/          # Navbar, Loader, PrivateRoute, ArbolPlaceholder,
-        │   │                        #   SvgLineChart, SvgBarChart
+        │   │   └── shared/          # Navbar, Loader, PrivateRoute, ErrorBoundary,
+        │   │                        #   ArbolPlaceholder, SvgLineChart, SvgBarChart
         │   └── pages/
         │       ├── Home.jsx         # Panel estudiante / panel administrador
         │       ├── DetalleArbol.jsx # 3 tabs: Información, Historial, Impacto CO₂
         │       ├── DashboardCO2.jsx # KPIs + gráficas + galería fotográfica
         │       ├── MapaLeaflet.jsx  # Mapa interactivo con clustering y filtros
+        │       ├── CatalogoEspecies.jsx # Catálogo de especies (administrador)
         │       └── NotFound.jsx
         └── package.json
 ```
@@ -230,6 +234,23 @@ Campos: `id_adopcion`, `nivel_riego`, `coloracion_hojas`, `presencia_plagas`, `d
 | `GET` | `/dashboard/:id` | Datos de impacto del árbol | Sí |
 | `POST` | `/dashboard/:id/calcular` | Recalcular impacto ambiental | Admin |
 
+### Especies
+
+| Método | Ruta | Descripción | Auth |
+|---|---|---|---|
+| `GET` | `/especies?activas=true` | Listar especies del catálogo | Sí |
+| `POST` | `/especies` | Registrar especie nueva | Admin |
+
+Valores admitidos: `necesidad_riego` ∈ `BAJA`/`MEDIA`/`ALTA`; `exposicion_solar` ∈ `SOMBRA`/`PARCIAL`/`PLENO_SOL`.
+
+### Notificaciones
+
+| Método | Ruta | Descripción | Auth |
+|---|---|---|---|
+| `GET` | `/notifications/me` | Mis notificaciones + número sin leer | Sí |
+| `PATCH` | `/notifications/read-all` | Marcar todas como leídas | Sí |
+| `PATCH` | `/notifications/:id/read` | Marcar una como leída | Sí |
+
 ---
 
 ## Vistas del frontend
@@ -245,6 +266,7 @@ Campos: `id_adopcion`, `nivel_riego`, `coloracion_hojas`, `presencia_plagas`, `d
 | `/escanear` | EscanerQR | Estudiante |
 | `/adopciones/:id/reporte` | FormularioReporte | Estudiante |
 | `/admin/arboles/nuevo` | RegistroArbol | Administrador |
+| `/admin/especies` | CatalogoEspecies | Administrador |
 
 ---
 
@@ -257,6 +279,8 @@ Campos: `id_adopcion`, `nivel_riego`, `coloracion_hojas`, `presencia_plagas`, `d
 | Ver Dashboard CO₂ | ✅ | ✅ |
 | Ver Mapa de árboles | ✅ | ✅ |
 | Registrar árbol nuevo | ❌ | ✅ |
+| Gestionar catálogo de especies | ❌ | ✅ |
+| Recibir notificaciones | ✅ | ✅ |
 | Panel de administración (Home) | ❌ | ✅ |
 
 El JWT se mantiene **solo en memoria** (nunca en `localStorage` ni `sessionStorage`) para mitigar ataques XSS. Las rutas privadas están protegidas tanto en el cliente (PrivateRoute) como en el servidor (middleware JWT + RBAC).
@@ -289,7 +313,8 @@ El JWT se mantiene **solo en memoria** (nunca en `localStorage` ni `sessionStora
 - **IndexedDB (cola offline)**: reportes se guardan localmente si no hay red y se sincronizan al reconectar.
 - **SVG nativo** para gráficas: sin dependencias externas (recharts, chart.js), sin aumento de bundle.
 - **CSS Modules** por componente: sin Tailwind, Bootstrap ni MUI.
-- **EXIF validation** en cliente: la foto del reporte debe tener GPS y fecha ≤ 24 h para garantizar autenticidad.
+- **Validación EXIF** en el servidor: la foto del reporte debe tener GPS, fecha de captura ≤ 7 días y haber sido tomada a ≤ 20 m del árbol para garantizar autenticidad (RF04).
+- **ErrorBoundary** global: un fallo de renderizado en una sección muestra un aviso de recuperación en lugar de dejar la app en blanco.
 
 ---
 
