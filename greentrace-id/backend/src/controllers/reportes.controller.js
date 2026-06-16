@@ -7,6 +7,17 @@
 const reportesService = require('../services/reportes.service');
 
 /**
+ * GET /api/reports/admin
+ * Lista todos los reportes — solo ADMINISTRADOR.
+ * @type {import('express').RequestHandler}
+ */
+async function listAll(req, res) {
+  const { page, limit } = req.query;
+  const result = await reportesService.listReportes({ page, limit });
+  res.status(200).json(result);
+}
+
+/**
  * POST /api/reports
  * Recibe multipart/form-data con el campo de archivo 'foto'.
  * @type {import('express').RequestHandler}
@@ -21,6 +32,10 @@ async function create(req, res) {
     estado_general,
     observaciones,
   } = req.body;
+
+  if (!req.file) {
+    return res.status(400).json({ error: 'No se recibió ningún archivo de imagen.' });
+  }
 
   const result = await reportesService.crearReporte({
     idUsuario: req.user.id_usuario,
@@ -39,4 +54,4 @@ async function create(req, res) {
   res.status(201).json(result);
 }
 
-module.exports = { create };
+module.exports = { create, listAll };

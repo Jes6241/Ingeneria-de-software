@@ -1,8 +1,9 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { adopcionesAPI, arbolesAPI } from '../services/api';
+import { adopcionesAPI, arbolesAPI, reportesAPI } from '../services/api';
 import { ROLES } from '../constants/roles';
+import toast from 'react-hot-toast';
 import Loader from '../components/shared/Loader';
 import ArbolPlaceholder from '../components/shared/ArbolPlaceholder';
 import styles from './Home.module.css';
@@ -37,6 +38,7 @@ export default function Home() {
 
   const [adopciones, setAdopciones] = useState([]);
   const [totalArboles, setTotalArboles] = useState(null);
+  const [reportes, setReportes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -45,9 +47,12 @@ export default function Home() {
     setError(null);
     try {
       if (isAdmin) {
-        // El administrador ve estadísticas globales, no adopciones propias.
-        const data = await arbolesAPI.listar({ limit: 1 });
-        setTotalArboles(data?.total ?? 0);
+        const [arbolesData, reportesData] = await Promise.all([
+          arbolesAPI.listar({ limit: 1 }),
+          reportesAPI.listarTodos({ limit: 20 }),
+        ]);
+        setTotalArboles(arbolesData?.total ?? 0);
+        setReportes(reportesData?.data ?? []);
       } else {
         const data = await adopcionesAPI.misAdopciones();
         setAdopciones(Array.isArray(data) ? data : []);
@@ -58,6 +63,18 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  const desadoptar = useCallback(async (idAdopcion) => {
+    if (!window.confirm('¿Estás seguro de que deseas desadoptar este árbol?')) return;
+    try {
+      await adopcionesAPI.desadoptar(idAdopcion);
+      toast.success('Árbol desadoptado correctamente.');
+      cargar();
+    } catch (err) {
+      toast.error(err.message || 'No se pudo desadoptar el árbol.');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     cargar();
@@ -108,7 +125,7 @@ export default function Home() {
             </div>
             <div className="card">
               <span className={styles.statIcon} aria-hidden="true">📋</span>
-              <strong className={styles.statValue}>—</strong>
+              <strong className={styles.statValue}>{reportes.length}</strong>
               <span className={styles.statLabel}>Reportes recibidos</span>
             </div>
           </section>
@@ -139,6 +156,60 @@ export default function Home() {
                 <span aria-hidden="true">📋</span> Catálogo de especies
               </button>
             </div>
+          </section>
+
+          {/* Panel de reportes */}
+          <section className={styles.adminSection}>
+            <h2 className={styles.sectionTitle}>Reportes recientes</h2>
+            {reportes.length === 0 ? (
+              <div className="card" style={{ textAlign: 'center', padding: '24px' }}>
+                <p>No hay reportes aún.</p>
+              </div>
+            ) : (
+              <div className={styles.reportesList}>
+                {reportes.map((r) => {
+                  const arbol = r.Adopcion?.Arbol;
+                  const usuario = r.Adopcion?.Usuario;
+                  const foto = r.EvidenciaFotograficas?.[0];
+                  return (
+                    <article key={r.id_reporte} className={`card ${styles.reporteCard}`}>
+                      {foto?.url_imagen && (
+                        <img
+                          src={foto.url_imagen}
+                          alt="Evidencia"
+                          className={styles.reporteImg}
+                        />
+                      )}
+                      <div className={styles.reporteInfo}>
+                        <strong>
+                          {arbol?.Especie?.nombre_comun || arbol?.id_unico || `Árbol #${r.id_adopcion}`}
+                        </strong>
+                        <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>
+                          {r.estado_general}
+                        </span>
+                        <p className={styles.reporteMeta}>
+                          {usuario?.nombre || '—'} &bull;{' '}
+                          {r.fecha_reporte
+                            ? new Date(r.fecha_reporte).toLocaleDateString('es-MX')
+                            : '—'}
+                        </p>
+                        <p className={styles.reporteMeta}>
+                          Riego: {r.nivel_riego} &bull; Coloración: {r.coloracion_hojas}
+                        </p>
+                        {r.presencia_plagas && (
+                          <p className={styles.reporteAlerta}>
+                            ⚠️ Plagas: {r.detalle_plagas || 'Sin detalle'}
+                          </p>
+                        )}
+                        {r.observaciones && (
+                          <p className={styles.reporteMeta}>{r.observaciones}</p>
+                        )}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </section>
         </>
       )}
@@ -212,6 +283,13 @@ export default function Home() {
                         }
                       >
                         📝 Generar reporte
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-block ${styles.btnDesadoptar}`}
+                        onClick={() => desadoptar(a.id_adopcion)}
+                      >
+                        Desadoptar
                       </button>
                     </article>
                   );

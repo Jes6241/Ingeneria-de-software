@@ -71,8 +71,34 @@ async function listAdopcionesByUsuario(idUsuario) {
   });
 }
 
+/**
+ * Desadopta un árbol — libera la adopción activa del usuario de forma voluntaria.
+ * La adopción se marca como LIBERADA y se aplica soft delete.
+ * @param {{ idUsuario: number, idAdopcion: number }} params
+ */
+async function unadoptArbol({ idUsuario, idAdopcion }) {
+  return sequelize.transaction(async (t) => {
+    const adopcion = await Adopcion.findOne({
+      where: { id_adopcion: idAdopcion, id_usuario: idUsuario, estado: 'ACTIVA' },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!adopcion) {
+      throw new AppError('Adopción no encontrada o no te pertenece.', 404);
+    }
+
+    adopcion.estado = 'LIBERADA';
+    await adopcion.save({ transaction: t });
+    await adopcion.destroy({ transaction: t });
+
+    return { mensaje: 'Árbol desadoptado correctamente.' };
+  });
+}
+
 module.exports = {
   adoptArbol,
+  unadoptArbol,
   listAdopcionesByUsuario,
   REPORT_DEADLINE_DAYS,
 };

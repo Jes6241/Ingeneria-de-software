@@ -22,6 +22,13 @@ const {
 
 const router = Router();
 
+router.get(
+  '/admin',
+  authenticate,
+  authorize(ROLES.ADMINISTRADOR),
+  reportesController.listAll
+);
+
 router.post(
   '/',
   authenticate,

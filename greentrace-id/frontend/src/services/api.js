@@ -82,16 +82,17 @@ export const arbolesAPI = {
 export const adopcionesAPI = {
   adoptar: (idUnico) => api.post('/adoptions', { idUnico }).then((r) => r.data),
   misAdopciones: () => api.get('/adoptions/me').then((r) => r.data),
+  desadoptar: (idAdopcion) => api.delete(`/adoptions/${idAdopcion}`).then((r) => r.data),
 };
 
 export const reportesAPI = {
-  // formData: FormData con campo 'foto' y campos del reporte.
   enviar: (formData) =>
     api
       .post('/reports', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
       .then((r) => r.data),
+  listarTodos: (params) => api.get('/reports/admin', { params }).then((r) => r.data),
 };
 
 export const dashboardAPI = {

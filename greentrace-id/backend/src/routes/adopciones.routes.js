@@ -27,4 +27,11 @@ router.post(
 
 router.get('/me', authenticate, adopcionesController.listMine);
 
+router.delete(
+  '/:id',
+  authenticate,
+  authorize(ROLES.ESTUDIANTE, ROLES.ADMINISTRADOR),
+  adopcionesController.unadopt
+);
+
 module.exports = router;

@@ -5,7 +5,12 @@ import toast from 'react-hot-toast';
 import { reportesAPI } from '../../services/api';
 import { useGeolocation } from '../../hooks/useGeolocation';
 import ValidacionEXIF from './ValidacionEXIF';
-import { guardarPendiente, listarPendientes, eliminarPendiente } from '../../utils/offlineQueue';
+import {
+  guardarPendiente,
+  listarPendientes,
+  sincronizarTodos,
+  contarPorEstado,
+} from '../../utils/offlineQueue';
 import styles from './FormularioReporte.module.css';
 
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -60,6 +65,8 @@ export default function FormularioReporte() {
   const [comprimiendo, setComprimiendo] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [online, setOnline] = useState(navigator.onLine);
+  const [reportesPendientes, setReportesPendientes] = useState([]);
+  const [sincronizando, setSincronizando] = useState(false);
 
   const [datos, setDatos] = useState({
     nivel_riego: 'Medio',
@@ -74,26 +81,50 @@ export default function FormularioReporte() {
   const setCampo = (campo, valor) =>
     setDatos((prev) => ({ ...prev, [campo]: valor }));
 
-  // --- Sincronización offline ---
+  // --- Sincronización offline mejorada ---
   const sincronizar = useCallback(async () => {
-    const pendientes = await listarPendientes();
-    for (const p of pendientes) {
-      try {
-        await reportesAPI.enviar(
-          buildFormData({
-            idAdopcion: p.idAdopcion,
-            blob: p.blob,
-            fileName: p.fileName,
-            datos: p.datos,
-          })
+    if (sincronizando) return;
+    setSincronizando(true);
+
+    try {
+      const resultado = await sincronizarTodos(
+        (formData) => reportesAPI.enviar(formData),
+        (pendientes, sincronizados, errores) => {
+          if (sincronizados + errores > 0) {
+            setReportesPendientes(pendientes - sincronizados - errores);
+          }
+        }
+      );
+
+      if (resultado.sincronizados > 0) {
+        toast.success(
+          `✅ ${resultado.sincronizados} reporte(s) sincronizado(s).`
         );
-        await eliminarPendiente(p.id);
-        toast.success('Reporte pendiente sincronizado.');
-      } catch {
-        // Se mantiene en la cola para el próximo intento.
       }
+
+      if (resultado.errores > 0) {
+        const conMaxIntentos = resultado.estadisticas.filter(
+          (e) => e.intento >= 3
+        ).length;
+        if (conMaxIntentos > 0) {
+          toast.error(`❌ ${conMaxIntentos} reporte(s) con error máximo.`);
+        } else {
+          toast(
+            `⚠️ ${resultado.errores} reporte(s) volverá(n) a intentarse.`,
+            { icon: '⏳' }
+          );
+        }
+      }
+
+      // Actualizar lista de pendientes
+      const pendientes = await listarPendientes();
+      setReportesPendientes(pendientes);
+    } catch (err) {
+      toast.error('Error al sincronizar: ' + err.message);
+    } finally {
+      setSincronizando(false);
     }
-  }, []);
+  }, [sincronizando]);
 
   useEffect(() => {
     const goOnline = () => {
@@ -103,7 +134,16 @@ export default function FormularioReporte() {
     const goOffline = () => setOnline(false);
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
+
+    // Cargar reportes pendientes al montar
+    const cargarPendientes = async () => {
+      const pendientes = await listarPendientes();
+      setReportesPendientes(pendientes);
+    };
+
+    cargarPendientes();
     if (navigator.onLine) sincronizar();
+
     return () => {
       window.removeEventListener('online', goOnline);
       window.removeEventListener('offline', goOffline);
@@ -197,6 +237,80 @@ export default function FormularioReporte() {
       {!online && (
         <div className={styles.offlineBanner} role="status">
           📡 Sin conexión — el reporte se enviará cuando recuperes internet.
+        </div>
+      )}
+
+      {/* Cola de reportes pendientes */}
+      {reportesPendientes.length > 0 && (
+        <div
+          className="card"
+          style={{
+            background: '#fff3e0',
+            border: '2px solid #ff9800',
+            marginBottom: 16,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 12,
+            }}
+          >
+            <p style={{ margin: 0, fontWeight: 'bold', color: '#e65100' }}>
+              📱 {reportesPendientes.length} reporte(s) en cola
+            </p>
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              onClick={sincronizar}
+              disabled={sincronizando || !online}
+              style={{ opacity: syncronizando || !online ? 0.6 : 1 }}
+            >
+              {sincronizando ? '⏳ Sincronizando...' : '🔄 Sincronizar'}
+            </button>
+          </div>
+
+          {reportesPendientes.map((p) => (
+            <div
+              key={p.id}
+              style={{
+                background: 'rgba(255,255,255,0.7)',
+                padding: 8,
+                borderRadius: 4,
+                marginBottom: 8,
+                fontSize: '0.85rem',
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  marginBottom: 4,
+                }}
+              >
+                <span style={{ fontWeight: 'bold' }}>
+                  {p.estado === 'ERROR' ? '❌' : p.estado === 'SINCRONIZANDO' ? '⏳' : '⏸️'}{' '}
+                  {p.estado}
+                </span>
+                <span style={{ color: '#666' }}>
+                  {p.intentos}/3 intentos
+                </span>
+              </div>
+              {p.errorMensaje && (
+                <p style={{ margin: 0, color: '#d32f2f', fontSize: '0.8rem' }}>
+                  {p.errorMensaje}
+                </p>
+              )}
+            </div>
+          ))}
+
+          {online && (
+            <p style={{ margin: '12px 0 0 0', fontSize: '0.85rem', color: '#f57c00' }}>
+              💡 Conecta tu dispositivo a internet para sincronizar automáticamente.
+            </p>
+          )}
         </div>
       )}
 

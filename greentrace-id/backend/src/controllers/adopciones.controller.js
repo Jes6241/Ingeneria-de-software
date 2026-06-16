@@ -30,4 +30,16 @@ async function listMine(req, res) {
   res.status(200).json(adopciones);
 }
 
-module.exports = { adopt, listMine };
+/**
+ * DELETE /api/adoptions/:id
+ * @type {import('express').RequestHandler}
+ */
+async function unadopt(req, res) {
+  const result = await adopcionesService.unadoptArbol({
+    idUsuario: req.user.id_usuario,
+    idAdopcion: Number(req.params.id),
+  });
+  res.status(200).json(result);
+}
+
+module.exports = { adopt, listMine, unadopt };

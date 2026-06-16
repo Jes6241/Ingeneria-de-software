@@ -37,9 +37,20 @@
 }
 
 .grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-direction: row;
   gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.grid::-webkit-scrollbar {
+  height: 4px;
+}
+.grid::-webkit-scrollbar-thumb {
+  background: var(--color-primary-light, #a7f3d0);
+  border-radius: 4px;
 }
 
 .treeCard {
@@ -48,6 +59,8 @@
   align-items: center;
   gap: 8px;
   text-align: center;
+  flex: 0 0 220px;
+  scroll-snap-align: start;
 }
 .treeTitle {
   font-size: 0.9rem;
@@ -79,6 +92,59 @@
   color: var(--color-primary);
   text-align: center;
   min-height: 72px;
+  flex: 0 0 160px;
+  scroll-snap-align: start;
+}
+
+.reportesList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.reporteCard {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  align-items: flex-start;
+}
+.reporteImg {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.reporteInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.reporteMeta {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.reporteAlerta {
+  font-size: 0.78rem;
+  color: var(--color-danger, #dc2626);
+  margin: 0;
+}
+
+.btnDesadoptar {
+  background: transparent;
+  border: 1px solid var(--color-danger, #dc2626);
+  color: var(--color-danger, #dc2626);
+  font-size: 0.8rem;
+  padding: 6px;
+}
+.btnDesadoptar:hover {
+  background: var(--color-danger, #dc2626);
+  color: #fff;
 }
 
 .fab {
