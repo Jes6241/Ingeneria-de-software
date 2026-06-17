@@ -9,26 +9,29 @@ import {
   guardarPendiente,
   listarPendientes,
   sincronizarTodos,
-  contarPorEstado,
 } from '../../utils/offlineQueue';
 import styles from './FormularioReporte.module.css';
 
-const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+const MAX_BYTES = 10 * 1024 * 1024;
 const PASOS = ['Evidencia', 'Datos', 'Revisión'];
 
 const NIVELES_RIEGO = [
-  { value: 'Bajo', label: '💧 Bajo' },
-  { value: 'Medio', label: '💧💧 Medio' },
-  { value: 'Alto', label: '💧💧💧 Alto' },
+  { value: 'SECO',       label: '💧 Seco' },
+  { value: 'HUMEDO',     label: '💧💧 Húmedo' },
+  { value: 'ENCHARCADO', label: '💧💧💧 Encharcado' },
 ];
 const COLORACIONES = [
-  'Verde intenso',
-  'Verde pálido',
-  'Amarillo',
-  'Café',
-  'Sin hojas',
+  { value: 'VERDE_VIVO',   label: 'Verde vivo' },
+  { value: 'VERDE_PALIDO', label: 'Verde pálido' },
+  { value: 'AMARILLO',     label: 'Amarillo' },
+  { value: 'CAFE',         label: 'Café' },
+  { value: 'SIN_HOJAS',   label: 'Sin hojas' },
 ];
-const ESTADOS = ['Excelente', 'Bueno', 'Regular', 'Crítico'];
+const ESTADOS = [
+  { value: 'OPTIMO',  label: 'Óptimo' },
+  { value: 'REGULAR', label: 'Regular' },
+  { value: 'CRITICO', label: 'Crítico' },
+];
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -36,7 +39,6 @@ function formatBytes(bytes) {
   return `${(bytes / 1048576).toFixed(2)} MB`;
 }
 
-/** Construye el FormData de un reporte a partir de sus partes. */
 function buildFormData({ idAdopcion, blob, fileName, datos }) {
   const fd = new FormData();
   fd.append('foto', blob, fileName);
@@ -50,7 +52,6 @@ function buildFormData({ idAdopcion, blob, fileName, datos }) {
   return fd;
 }
 
-/** Formulario de reporte mensual de salud en 3 pasos (RF03/RF04). */
 export default function FormularioReporte() {
   const { id } = useParams();
   const idAdopcion = Number(id);
@@ -69,23 +70,21 @@ export default function FormularioReporte() {
   const [sincronizando, setSincronizando] = useState(false);
 
   const [datos, setDatos] = useState({
-    nivel_riego: 'Medio',
-    coloracion_hojas: 'Verde intenso',
+    nivel_riego: 'HUMEDO',
+    coloracion_hojas: 'VERDE_VIVO',
     presencia_plagas: false,
     detalle_plagas: '',
     severidad: 'Leve',
-    estado_general: 'Bueno',
+    estado_general: 'OPTIMO',
     observaciones: '',
   });
 
   const setCampo = (campo, valor) =>
     setDatos((prev) => ({ ...prev, [campo]: valor }));
 
-  // --- Sincronización offline mejorada ---
   const sincronizar = useCallback(async () => {
     if (sincronizando) return;
     setSincronizando(true);
-
     try {
       const resultado = await sincronizarTodos(
         (formData) => reportesAPI.enviar(formData),
@@ -95,28 +94,12 @@ export default function FormularioReporte() {
           }
         }
       );
-
-      if (resultado.sincronizados > 0) {
-        toast.success(
-          `✅ ${resultado.sincronizados} reporte(s) sincronizado(s).`
-        );
-      }
-
+      if (resultado.sincronizados > 0) toast.success(`✅ ${resultado.sincronizados} reporte(s) sincronizado(s).`);
       if (resultado.errores > 0) {
-        const conMaxIntentos = resultado.estadisticas.filter(
-          (e) => e.intento >= 3
-        ).length;
-        if (conMaxIntentos > 0) {
-          toast.error(`❌ ${conMaxIntentos} reporte(s) con error máximo.`);
-        } else {
-          toast(
-            `⚠️ ${resultado.errores} reporte(s) volverá(n) a intentarse.`,
-            { icon: '⏳' }
-          );
-        }
+        const conMaxIntentos = resultado.estadisticas.filter((e) => e.intento >= 3).length;
+        if (conMaxIntentos > 0) toast.error(`❌ ${conMaxIntentos} reporte(s) con error máximo.`);
+        else toast(`⚠️ ${resultado.errores} reporte(s) volverá(n) a intentarse.`, { icon: '⏳' });
       }
-
-      // Actualizar lista de pendientes
       const pendientes = await listarPendientes();
       setReportesPendientes(pendientes);
     } catch (err) {
@@ -127,79 +110,44 @@ export default function FormularioReporte() {
   }, [sincronizando]);
 
   useEffect(() => {
-    const goOnline = () => {
-      setOnline(true);
-      sincronizar();
-    };
+    const goOnline = () => { setOnline(true); sincronizar(); };
     const goOffline = () => setOnline(false);
     window.addEventListener('online', goOnline);
     window.addEventListener('offline', goOffline);
-
-    // Cargar reportes pendientes al montar
-    const cargarPendientes = async () => {
-      const pendientes = await listarPendientes();
-      setReportesPendientes(pendientes);
-    };
-
-    cargarPendientes();
+    listarPendientes().then(setReportesPendientes);
     if (navigator.onLine) sincronizar();
-
     return () => {
       window.removeEventListener('online', goOnline);
       window.removeEventListener('offline', goOffline);
     };
   }, [sincronizar]);
 
-  // --- Paso 1: selección y compresión de imagen ---
   const handleFile = async (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
-    if (f.size > MAX_BYTES) {
-      toast.error('El archivo supera el límite de 10 MB');
-      return;
-    }
+    if (f.size > MAX_BYTES) { toast.error('El archivo supera el límite de 10 MB'); return; }
     setFile(f);
     setExifValido(false);
     setComprimiendo(true);
     try {
-      const out = await imageCompression(f, {
-        maxSizeMB: 2,
-        maxWidthOrHeight: 1920,
-        useWebWorker: true,
-        preserveExif: true,
-      });
+      const out = await imageCompression(f, { maxSizeMB: 2, maxWidthOrHeight: 1920, useWebWorker: true, preserveExif: true });
       setCompressed(out);
       if (previewUrl) URL.revokeObjectURL(previewUrl);
       setPreviewUrl(URL.createObjectURL(out));
-    } catch {
-      toast.error('No se pudo procesar la imagen.');
-    } finally {
-      setComprimiendo(false);
-    }
+    } catch { toast.error('No se pudo procesar la imagen.'); }
+    finally { setComprimiendo(false); }
   };
 
-  useEffect(
-    () => () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    },
-    [previewUrl]
-  );
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
 
   const enviar = async () => {
     if (!compressed) return;
     setEnviando(true);
-    const entry = {
-      idAdopcion,
-      blob: compressed,
-      fileName: file?.name || 'evidencia.jpg',
-      datos,
-    };
+    const entry = { idAdopcion, blob: compressed, fileName: file?.name || 'evidencia.jpg', datos };
     try {
       if (!navigator.onLine) {
         await guardarPendiente(entry);
-        toast('📡 Sin conexión — el reporte se enviará al recuperar internet.', {
-          icon: '💾',
-        });
+        toast('📡 Sin conexión — el reporte se enviará al recuperar internet.', { icon: '💾' });
         navigate('/home');
         return;
       }
@@ -207,25 +155,16 @@ export default function FormularioReporte() {
       toast.success('¡Reporte enviado correctamente! 🌱');
       navigate('/home');
     } catch (err) {
-      // Si el servidor respondió con un error (status presente), es un
-      // problema del reporte (p. ej. foto sin GPS): mostrar el motivo real.
       if (err.status) {
         toast.error(err.message);
       } else {
-        // Sin respuesta del servidor = fallo de red real: guardar offline.
         try {
           await guardarPendiente(entry);
-          toast('Sin conexión: el reporte se reintentará automáticamente.', {
-            icon: '💾',
-          });
+          toast('Sin conexión: el reporte se reintentará automáticamente.', { icon: '💾' });
           navigate('/home');
-        } catch {
-          toast.error('No se pudo enviar ni guardar el reporte.');
-        }
+        } catch { toast.error('No se pudo enviar ni guardar el reporte.'); }
       }
-    } finally {
-      setEnviando(false);
-    }
+    } finally { setEnviando(false); }
   };
 
   const severidadSevera = datos.presencia_plagas && datos.severidad === 'Severa';
@@ -240,338 +179,134 @@ export default function FormularioReporte() {
         </div>
       )}
 
-      {/* Cola de reportes pendientes */}
       {reportesPendientes.length > 0 && (
-        <div
-          className="card"
-          style={{
-            background: '#fff3e0',
-            border: '2px solid #ff9800',
-            marginBottom: 16,
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: 12,
-            }}
-          >
-            <p style={{ margin: 0, fontWeight: 'bold', color: '#e65100' }}>
-              📱 {reportesPendientes.length} reporte(s) en cola
-            </p>
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              onClick={sincronizar}
-              disabled={sincronizando || !online}
-              style={{ opacity: syncronizando || !online ? 0.6 : 1 }}
-            >
+        <div className="card" style={{ background: '#fff3e0', border: '2px solid #ff9800', marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <p style={{ margin: 0, fontWeight: 'bold', color: '#e65100' }}>📱 {reportesPendientes.length} reporte(s) en cola</p>
+            <button type="button" className="btn btn-sm btn-primary" onClick={sincronizar} disabled={sincronizando || !online}>
               {sincronizando ? '⏳ Sincronizando...' : '🔄 Sincronizar'}
             </button>
           </div>
-
           {reportesPendientes.map((p) => (
-            <div
-              key={p.id}
-              style={{
-                background: 'rgba(255,255,255,0.7)',
-                padding: 8,
-                borderRadius: 4,
-                marginBottom: 8,
-                fontSize: '0.85rem',
-              }}
-            >
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  marginBottom: 4,
-                }}
-              >
-                <span style={{ fontWeight: 'bold' }}>
-                  {p.estado === 'ERROR' ? '❌' : p.estado === 'SINCRONIZANDO' ? '⏳' : '⏸️'}{' '}
-                  {p.estado}
-                </span>
-                <span style={{ color: '#666' }}>
-                  {p.intentos}/3 intentos
-                </span>
+            <div key={p.id} style={{ background: 'rgba(255,255,255,0.7)', padding: 8, borderRadius: 4, marginBottom: 8, fontSize: '0.85rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                <span style={{ fontWeight: 'bold' }}>{p.estado === 'ERROR' ? '❌' : p.estado === 'SINCRONIZANDO' ? '⏳' : '⏸️'} {p.estado}</span>
+                <span style={{ color: '#666' }}>{p.intentos}/3 intentos</span>
               </div>
-              {p.errorMensaje && (
-                <p style={{ margin: 0, color: '#d32f2f', fontSize: '0.8rem' }}>
-                  {p.errorMensaje}
-                </p>
-              )}
+              {p.errorMensaje && <p style={{ margin: 0, color: '#d32f2f', fontSize: '0.8rem' }}>{p.errorMensaje}</p>}
             </div>
           ))}
-
-          {online && (
-            <p style={{ margin: '12px 0 0 0', fontSize: '0.85rem', color: '#f57c00' }}>
-              💡 Conecta tu dispositivo a internet para sincronizar automáticamente.
-            </p>
-          )}
         </div>
       )}
 
-      {/* Stepper */}
       <ol className={styles.stepper}>
         {PASOS.map((nombre, i) => (
-          <li
-            key={nombre}
-            className={`${styles.step} ${i === paso ? styles.active : ''} ${
-              i < paso ? styles.done : ''
-            }`}
-          >
+          <li key={nombre} className={`${styles.step} ${i === paso ? styles.active : ''} ${i < paso ? styles.done : ''}`}>
             <span className={styles.stepNum}>{i < paso ? '✓' : i + 1}</span>
             {nombre}
           </li>
         ))}
       </ol>
 
-      {/* Paso 1 — Evidencia */}
       {paso === 0 && (
         <section className="card">
           <h2 className={styles.h2}>1. Evidencia fotográfica</h2>
           <label className={styles.dropzone} htmlFor="foto">
-            {previewUrl ? (
-              <img src={previewUrl} alt="Vista previa de la evidencia" />
-            ) : (
-              <span>📁 Selecciona una imagen (.jpg/.png, máx 10 MB)</span>
-            )}
-            <input
-              id="foto"
-              type="file"
-              accept="image/jpeg,image/png"
-              capture="environment"
-              onChange={handleFile}
-              hidden
-            />
+            {previewUrl ? <img src={previewUrl} alt="Vista previa de la evidencia" /> : <span>📁 Selecciona una imagen (.jpg/.png, máx 10 MB)</span>}
+            <input id="foto" type="file" accept="image/jpeg,image/png" capture="environment" onChange={handleFile} hidden />
           </label>
-
           {comprimiendo && <p className="form-hint">Comprimiendo imagen…</p>}
-          {compressed && !comprimiendo && (
-            <p className="form-hint">
-              Tamaño final: {formatBytes(compressed.size)}
-            </p>
-          )}
-
+          {compressed && !comprimiendo && <p className="form-hint">Tamaño final: {formatBytes(compressed.size)}</p>}
           {compressed && (
-            <ValidacionEXIF
-              file={compressed}
-              targetLat={coords?.lat}
-              targetLng={coords?.lng}
-              onValidated={setExifValido}
-              onRequestCamera={() => document.getElementById('foto')?.click()}
-            />
+            <ValidacionEXIF file={compressed} targetLat={coords?.lat} targetLng={coords?.lng} onValidated={setExifValido} onRequestCamera={() => document.getElementById('foto')?.click()} />
           )}
-
-          <button
-            type="button"
-            className="btn btn-primary btn-block"
-            disabled={!exifValido}
-            onClick={() => setPaso(1)}
-          >
-            Siguiente
-          </button>
+          <button type="button" className="btn btn-primary btn-block" disabled={!exifValido} onClick={() => setPaso(1)}>Siguiente</button>
         </section>
       )}
 
-      {/* Paso 2 — Datos */}
       {paso === 1 && (
         <section className="card">
           <h2 className={styles.h2}>2. Datos del reporte</h2>
-
           <div className="form-group">
             <span className="form-label">Nivel de riego</span>
             <div className={styles.radioRow}>
               {NIVELES_RIEGO.map((n) => (
                 <label key={n.value} className={styles.radioChip}>
-                  <input
-                    type="radio"
-                    name="nivel_riego"
-                    value={n.value}
-                    checked={datos.nivel_riego === n.value}
-                    onChange={(e) => setCampo('nivel_riego', e.target.value)}
-                  />
+                  <input type="radio" name="nivel_riego" value={n.value} checked={datos.nivel_riego === n.value} onChange={(e) => setCampo('nivel_riego', e.target.value)} />
                   {n.label}
                 </label>
               ))}
             </div>
           </div>
-
           <div className="form-group">
-            <label className="form-label" htmlFor="coloracion">
-              Coloración de hojas
-            </label>
-            <select
-              id="coloracion"
-              className="form-input"
-              value={datos.coloracion_hojas}
-              onChange={(e) => setCampo('coloracion_hojas', e.target.value)}
-            >
-              {COLORACIONES.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
+            <label className="form-label" htmlFor="coloracion">Coloración de hojas</label>
+            <select id="coloracion" className="form-input" value={datos.coloracion_hojas} onChange={(e) => setCampo('coloracion_hojas', e.target.value)}>
+              {COLORACIONES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
             </select>
           </div>
-
           <div className="form-group">
             <span className="form-label">Presencia de plagas</span>
             <div className={styles.toggle}>
-              <button
-                type="button"
-                className={!datos.presencia_plagas ? styles.toggleOn : ''}
-                onClick={() => setCampo('presencia_plagas', false)}
-              >
-                No
-              </button>
-              <button
-                type="button"
-                className={datos.presencia_plagas ? styles.toggleOn : ''}
-                onClick={() => setCampo('presencia_plagas', true)}
-              >
-                Sí
-              </button>
+              <button type="button" className={!datos.presencia_plagas ? styles.toggleOn : ''} onClick={() => setCampo('presencia_plagas', false)}>No</button>
+              <button type="button" className={datos.presencia_plagas ? styles.toggleOn : ''} onClick={() => setCampo('presencia_plagas', true)}>Sí</button>
             </div>
           </div>
-
           {datos.presencia_plagas && (
             <>
               <div className="form-group">
-                <label className="form-label" htmlFor="detalle">
-                  Describe el problema
-                </label>
-                <textarea
-                  id="detalle"
-                  className="form-input"
-                  rows={2}
-                  value={datos.detalle_plagas}
-                  onChange={(e) => setCampo('detalle_plagas', e.target.value)}
-                />
+                <label className="form-label" htmlFor="detalle">Describe el problema</label>
+                <textarea id="detalle" className="form-input" rows={2} value={datos.detalle_plagas} onChange={(e) => setCampo('detalle_plagas', e.target.value)} />
               </div>
               <div className="form-group">
-                <label className="form-label" htmlFor="severidad">
-                  Severidad
-                </label>
-                <select
-                  id="severidad"
-                  className="form-input"
-                  value={datos.severidad}
-                  onChange={(e) => setCampo('severidad', e.target.value)}
-                >
-                  <option>Leve</option>
-                  <option>Moderada</option>
-                  <option>Severa</option>
+                <label className="form-label" htmlFor="severidad">Severidad</label>
+                <select id="severidad" className="form-input" value={datos.severidad} onChange={(e) => setCampo('severidad', e.target.value)}>
+                  <option>Leve</option><option>Moderada</option><option>Severa</option>
                 </select>
               </div>
-              {severidadSevera && (
-                <div className={styles.warnBanner} role="alert">
-                  ⚠️ Se notificará al administrador automáticamente.
-                </div>
-              )}
+              {severidadSevera && <div className={styles.warnBanner} role="alert">⚠️ Se notificará al administrador automáticamente.</div>}
             </>
           )}
-
           <div className="form-group">
             <span className="form-label">Estado general</span>
             <div className={styles.radioRow}>
               {ESTADOS.map((s) => (
-                <label key={s} className={styles.radioChip}>
-                  <input
-                    type="radio"
-                    name="estado_general"
-                    value={s}
-                    checked={datos.estado_general === s}
-                    onChange={(e) => setCampo('estado_general', e.target.value)}
-                  />
-                  {s}
+                <label key={s.value} className={styles.radioChip}>
+                  <input type="radio" name="estado_general" value={s.value} checked={datos.estado_general === s.value} onChange={(e) => setCampo('estado_general', e.target.value)} />
+                  {s.label}
                 </label>
               ))}
             </div>
           </div>
-
           <div className="form-group">
-            <label className="form-label" htmlFor="obs">
-              Observaciones ({datos.observaciones.length}/500)
-            </label>
-            <textarea
-              id="obs"
-              className="form-input"
-              rows={3}
-              maxLength={500}
-              value={datos.observaciones}
-              onChange={(e) => setCampo('observaciones', e.target.value)}
-            />
+            <label className="form-label" htmlFor="obs">Observaciones ({datos.observaciones.length}/500)</label>
+            <textarea id="obs" className="form-input" rows={3} maxLength={500} value={datos.observaciones} onChange={(e) => setCampo('observaciones', e.target.value)} />
           </div>
-
           <div className={styles.geoBadge}>
-            {coords ? (
-              <span className="badge badge-success">📍 Ubicación verificada</span>
-            ) : geoError ? (
-              <span className="badge badge-warning">
-                ⚠️ {geoError} — pendiente revisión manual
-              </span>
-            ) : (
-              <span className="badge badge-neutral">📍 Obteniendo ubicación…</span>
-            )}
+            {coords ? <span className="badge badge-success">📍 Ubicación verificada</span>
+              : geoError ? <span className="badge badge-warning">⚠️ {geoError} — pendiente revisión manual</span>
+              : <span className="badge badge-neutral">📍 Obteniendo ubicación…</span>}
           </div>
-
           <div className={styles.navBtns}>
-            <button type="button" className="btn btn-outline" onClick={() => setPaso(0)}>
-              Atrás
-            </button>
-            <button type="button" className="btn btn-primary" onClick={() => setPaso(2)}>
-              Siguiente
-            </button>
+            <button type="button" className="btn btn-outline" onClick={() => setPaso(0)}>Atrás</button>
+            <button type="button" className="btn btn-primary" onClick={() => setPaso(2)}>Siguiente</button>
           </div>
         </section>
       )}
 
-      {/* Paso 3 — Revisión */}
       {paso === 2 && (
         <section className="card">
           <h2 className={styles.h2}>3. Revisión y envío</h2>
-          {previewUrl && (
-            <img src={previewUrl} alt="Evidencia" className={styles.reviewImg} />
-          )}
+          {previewUrl && <img src={previewUrl} alt="Evidencia" className={styles.reviewImg} />}
           <dl className={styles.review}>
-            <div>
-              <dt>Nivel de riego</dt>
-              <dd>{datos.nivel_riego}</dd>
-            </div>
-            <div>
-              <dt>Coloración de hojas</dt>
-              <dd>{datos.coloracion_hojas}</dd>
-            </div>
-            <div>
-              <dt>Plagas</dt>
-              <dd>
-                {datos.presencia_plagas
-                  ? `Sí (${datos.severidad})`
-                  : 'No'}
-              </dd>
-            </div>
-            <div>
-              <dt>Estado general</dt>
-              <dd>{datos.estado_general}</dd>
-            </div>
-            <div>
-              <dt>Observaciones</dt>
-              <dd>{datos.observaciones || '—'}</dd>
-            </div>
+            <div><dt>Nivel de riego</dt><dd>{NIVELES_RIEGO.find((n) => n.value === datos.nivel_riego)?.label ?? datos.nivel_riego}</dd></div>
+            <div><dt>Coloración de hojas</dt><dd>{COLORACIONES.find((c) => c.value === datos.coloracion_hojas)?.label ?? datos.coloracion_hojas}</dd></div>
+            <div><dt>Plagas</dt><dd>{datos.presencia_plagas ? `Sí (${datos.severidad})` : 'No'}</dd></div>
+            <div><dt>Estado general</dt><dd>{ESTADOS.find((e) => e.value === datos.estado_general)?.label ?? datos.estado_general}</dd></div>
+            <div><dt>Observaciones</dt><dd>{datos.observaciones || '—'}</dd></div>
           </dl>
-
           <div className={styles.navBtns}>
-            <button type="button" className="btn btn-outline" onClick={() => setPaso(1)}>
-              Atrás
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={enviar}
-              disabled={enviando}
-            >
+            <button type="button" className="btn btn-outline" onClick={() => setPaso(1)}>Atrás</button>
+            <button type="button" className="btn btn-primary" onClick={enviar} disabled={enviando}>
               {enviando ? <span className="spinner" /> : 'Enviar reporte'}
             </button>
           </div>

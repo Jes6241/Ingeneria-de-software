@@ -90,7 +90,7 @@ async function crearReporte({ idUsuario, idAdopcion, datos, imagenBuffer }) {
         exif_valido: true,
         fecha_subida: new Date(),
         mime_type: uploadResult.resource_type
-          ? `image/${uploadResult.format}`
+          ? `image/${uploadResult.format === 'jpg' ? 'jpeg' : uploadResult.format}`
           : null,
         tamano_bytes: uploadResult.bytes || null,
       },
