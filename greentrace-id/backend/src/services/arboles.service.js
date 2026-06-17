@@ -8,7 +8,7 @@
 
 const { randomUUID } = require('crypto');
 
-const { Arbol, Especie } = require('../models');
+const { Arbol, Especie, Adopcion } = require('../models');
 const { AppError } = require('../middlewares/errorHandler');
 const { calcularImpacto } = require('./co2.service');
 const logger = require('../config/logger');
@@ -26,14 +26,28 @@ async function listArboles({ page = 1, limit = MAX_PAGE_SIZE } = {}) {
   const safePage = Math.max(Number(page) || 1, 1);
   const offset = (safePage - 1) * safeLimit;
 
-  const { rows, count } = await Arbol.findAndCountAll({
-    limit: safeLimit,
-    offset,
-    order: [['id_arbol', 'ASC']],
-    include: [{ model: Especie }],
+  const [result, adopcionesActivas] = await Promise.all([
+    Arbol.findAndCountAll({
+      limit: safeLimit,
+      offset,
+      order: [['id_arbol', 'ASC']],
+      include: [{ model: Especie }],
+    }),
+    Adopcion.findAll({
+      where: { estado: 'ACTIVA' },
+      attributes: ['id_arbol'],
+    }),
+  ]);
+
+  const adoptadosSet = new Set(adopcionesActivas.map((a) => a.id_arbol));
+
+  const data = result.rows.map((arbol) => {
+    const json = arbol.toJSON();
+    json.adoptado = adoptadosSet.has(json.id_arbol);
+    return json;
   });
 
-  return { data: rows, page: safePage, limit: safeLimit, total: count };
+  return { data, page: safePage, limit: safeLimit, total: result.count };
 }
 
 /**

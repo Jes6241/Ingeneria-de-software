@@ -91,6 +91,9 @@ const PORT = process.env.PORT || 3001;
 async function start() {
   try {
     await testConnection();
+    // Migración: columna aprobado en reportes (idempotente).
+    const { sequelize: seq } = require('./models');
+    await seq.query('ALTER TABLE reportes ADD COLUMN IF NOT EXISTS aprobado BOOLEAN DEFAULT FALSE').catch(() => {});
     startCronJobs();
     const server = app.listen(PORT, () => {
       logger.info(`Servidor escuchando en el puerto ${PORT}.`);

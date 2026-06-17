@@ -18,10 +18,12 @@ const ESTADOS = {
   Regular: { color: '#d97706', label: 'Regular' },
   'Crítico': { color: '#dc2626', label: 'Crítico' },
   Disponible: { color: '#2563eb', label: 'Disponible' },
+  Adoptado: { color: '#7c3aed', label: 'Adoptado' },
 };
 
 /** Normaliza el estado de salud de un árbol para colorear el marcador. */
 function estadoDe(arbol) {
+  if (arbol.adoptado) return 'Adoptado';
   const e = arbol.estado_salud || arbol.estado;
   if (e && ESTADOS[e]) return e;
   return 'Disponible';
@@ -44,6 +46,7 @@ export default function MapaLeaflet() {
     Regular: true,
     'Crítico': true,
     Disponible: true,
+    Adoptado: true,
   });
 
   // Inicializa el mapa una sola vez.

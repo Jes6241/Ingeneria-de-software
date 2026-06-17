@@ -14,6 +14,8 @@ const {
   EvidenciaFotografica,
   Adopcion,
   Arbol,
+  Usuario,
+  Especie,
 } = require('../models');
 const { uploadImage } = require('../config/cloudinary');
 const { validateExif } = require('./exif.service');
@@ -88,7 +90,7 @@ async function crearReporte({ idUsuario, idAdopcion, datos, imagenBuffer }) {
         exif_valido: true,
         fecha_subida: new Date(),
         mime_type: uploadResult.resource_type
-          ? `image/${uploadResult.format}`
+          ? `image/${uploadResult.format === 'jpg' ? 'jpeg' : uploadResult.format}`
           : null,
         tamano_bytes: uploadResult.bytes || null,
       },
@@ -115,4 +117,50 @@ async function crearReporte({ idUsuario, idAdopcion, datos, imagenBuffer }) {
   return resultado;
 }
 
-module.exports = { crearReporte, CLOUDINARY_FOLDER };
+/**
+ * Lista todos los reportes con información del árbol y del estudiante (solo admin).
+ * @param {{ page?: number, limit?: number }} options
+ * @returns {Promise<object[]>}
+ */
+async function listReportes({ page = 1, limit = 20 } = {}) {
+  const safeLimit = Math.min(Number(limit) || 20, 50);
+  const safePage = Math.max(Number(page) || 1, 1);
+  const offset = (safePage - 1) * safeLimit;
+
+  const { rows, count } = await Reporte.findAndCountAll({
+    limit: safeLimit,
+    offset,
+    order: [['fecha_reporte', 'DESC']],
+    include: [
+      {
+        model: EvidenciaFotografica,
+        attributes: ['url_imagen', 'exif_valido'],
+      },
+      {
+        model: Adopcion,
+        attributes: ['id_adopcion', 'fecha_adopcion', 'estado'],
+        paranoid: false,
+        include: [
+          { model: Arbol, attributes: ['id_unico', 'latitud', 'longitud'], paranoid: false, include: [{ model: Especie, attributes: ['nombre_comun'] }] },
+          { model: Usuario, attributes: ['nombre', 'correo'] },
+        ],
+      },
+    ],
+  });
+
+  return { data: rows, total: count, page: safePage, limit: safeLimit };
+}
+
+/**
+ * Aprueba un reporte — marca aprobado = true (solo admin).
+ * @param {{ idReporte: number }} params
+ */
+async function aprobarReporte({ idReporte }) {
+  const reporte = await Reporte.findByPk(idReporte);
+  if (!reporte) throw new AppError('Reporte no encontrado.', 404);
+  reporte.aprobado = true;
+  await reporte.save();
+  return { mensaje: 'Reporte aprobado correctamente.' };
+}
+
+module.exports = { crearReporte, listReportes, aprobarReporte, CLOUDINARY_FOLDER };

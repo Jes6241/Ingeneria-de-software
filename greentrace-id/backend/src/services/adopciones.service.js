@@ -6,7 +6,7 @@
  * cambia su estado a "Adoptado" dentro de una transacción ACID.
  */
 
-const { sequelize, Arbol, Adopcion } = require('../models');
+const { sequelize, Arbol, Adopcion, Usuario, Especie, Reporte } = require('../models');
 const { AppError } = require('../middlewares/errorHandler');
 
 // Plazo mensual estándar para entregar el reporte (en días).
@@ -71,8 +71,78 @@ async function listAdopcionesByUsuario(idUsuario) {
   });
 }
 
+/**
+ * Desadopta un árbol — libera la adopción activa del usuario de forma voluntaria.
+ * La adopción se marca como LIBERADA y se aplica soft delete.
+ * @param {{ idUsuario: number, idAdopcion: number }} params
+ */
+async function unadoptArbol({ idUsuario, idAdopcion }) {
+  return sequelize.transaction(async (t) => {
+    const adopcion = await Adopcion.findOne({
+      where: { id_adopcion: idAdopcion, id_usuario: idUsuario, estado: 'ACTIVA' },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+
+    if (!adopcion) {
+      throw new AppError('Adopción no encontrada o no te pertenece.', 404);
+    }
+
+    adopcion.estado = 'LIBERADA';
+    await adopcion.save({ transaction: t });
+    await adopcion.destroy({ transaction: t });
+
+    return { mensaje: 'Árbol desadoptado correctamente.' };
+  });
+}
+
+/**
+ * Lista todas las adopciones activas con info del usuario, árbol y conteo de reportes (solo admin).
+ * @returns {Promise<object[]>}
+ */
+async function listAllAdopciones() {
+  const adopciones = await Adopcion.findAll({
+    where: { estado: 'ACTIVA' },
+    include: [
+      { model: Usuario, attributes: ['id_usuario', 'nombre', 'correo'] },
+      { model: Arbol, include: [{ model: Especie, attributes: ['nombre_comun'] }] },
+    ],
+    order: [['fecha_adopcion', 'DESC']],
+  });
+
+  return Promise.all(
+    adopciones.map(async (a) => {
+      const json = a.toJSON();
+      json.num_reportes = await Reporte.count({ where: { id_adopcion: a.id_adopcion } });
+      return json;
+    })
+  );
+}
+
+/**
+ * Libera cualquier adopción activa — acción de administrador sin verificar propietario.
+ * @param {{ idAdopcion: number }} params
+ */
+async function unadoptArbolAdmin({ idAdopcion }) {
+  return sequelize.transaction(async (t) => {
+    const adopcion = await Adopcion.findOne({
+      where: { id_adopcion: idAdopcion, estado: 'ACTIVA' },
+      transaction: t,
+      lock: t.LOCK.UPDATE,
+    });
+    if (!adopcion) throw new AppError('Adopción no encontrada o ya no está activa.', 404);
+    adopcion.estado = 'LIBERADA';
+    await adopcion.save({ transaction: t });
+    await adopcion.destroy({ transaction: t });
+    return { mensaje: 'Árbol liberado correctamente.' };
+  });
+}
+
 module.exports = {
   adoptArbol,
+  unadoptArbol,
+  unadoptArbolAdmin,
   listAdopcionesByUsuario,
+  listAllAdopciones,
   REPORT_DEADLINE_DAYS,
 };

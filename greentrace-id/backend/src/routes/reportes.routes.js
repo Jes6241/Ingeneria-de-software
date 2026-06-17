@@ -22,6 +22,9 @@ const {
 
 const router = Router();
 
+router.get('/admin', authenticate, authorize(ROLES.ADMINISTRADOR), reportesController.listAll);
+router.patch('/:id/approve', authenticate, authorize(ROLES.ADMINISTRADOR), reportesController.approve);
+
 router.post(
   '/',
   authenticate,

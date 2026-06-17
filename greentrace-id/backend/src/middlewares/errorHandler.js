@@ -47,6 +47,12 @@ function errorHandler(err, req, res, _next) {
     });
   }
 
+  // Errores de base de datos de Sequelize (columna inexistente, restricción FK, etc.)
+  if (err.name === 'SequelizeDatabaseError' || err.name === 'SequelizeForeignKeyConstraintError') {
+    logger.error(`Error de BD: ${err.message}`);
+    return res.status(500).json({ error: 'Error de base de datos. Por favor inténtalo de nuevo.' });
+  }
+
   if (statusCode >= 500) {
     logger.error(err.stack || err.message);
   } else {
