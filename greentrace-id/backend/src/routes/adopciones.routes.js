@@ -1,11 +1,5 @@
 'use strict';
 
-/**
- * Rutas de adopciones (RF02).
- *   POST /api/adoptions      → adoptar árbol vía QR (Estudiante)
- *   GET  /api/adoptions/me   → adopciones del usuario autenticado
- */
-
 const { Router } = require('express');
 const { body } = require('express-validator');
 
@@ -15,6 +9,9 @@ const { authorize, ROLES } = require('../middlewares/rbac');
 const validate = require('../middlewares/validate');
 
 const router = Router();
+
+router.get('/admin', authenticate, authorize(ROLES.ADMINISTRADOR), adopcionesController.listAll);
+router.delete('/admin/:id', authenticate, authorize(ROLES.ADMINISTRADOR), adopcionesController.unadoptAdmin);
 
 router.post(
   '/',

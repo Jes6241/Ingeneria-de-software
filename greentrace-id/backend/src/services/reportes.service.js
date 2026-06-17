@@ -151,4 +151,16 @@ async function listReportes({ page = 1, limit = 20 } = {}) {
   return { data: rows, total: count, page: safePage, limit: safeLimit };
 }
 
-module.exports = { crearReporte, listReportes, CLOUDINARY_FOLDER };
+/**
+ * Aprueba un reporte — marca aprobado = true (solo admin).
+ * @param {{ idReporte: number }} params
+ */
+async function aprobarReporte({ idReporte }) {
+  const reporte = await Reporte.findByPk(idReporte);
+  if (!reporte) throw new AppError('Reporte no encontrado.', 404);
+  reporte.aprobado = true;
+  await reporte.save();
+  return { mensaje: 'Reporte aprobado correctamente.' };
+}
+
+module.exports = { crearReporte, listReportes, aprobarReporte, CLOUDINARY_FOLDER };
